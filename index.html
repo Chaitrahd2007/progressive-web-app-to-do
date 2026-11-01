@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Progressive Web App To-Do</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PWA ToDo">
+    <meta name="description" content="A simple, offline-capable To-Do list PWA.">
+
+    <!-- 
+      Embedded Manifest.json 
+      In a standard multi-file setup, this would be <link rel="manifest" href="manifest.json">
+      Here, we URL-encode the JSON configuration to keep it entirely within this single file.
+    -->
+    <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%0A%20%20%22name%22%3A%20%22Progressive%20Web%20App%20To-Do%22%2C%0A%20%20%22short_name%22%3A%20%22ToDo%20PWA%22%2C%0A%20%20%22start_url%22%3A%20%22.%22%2C%0A%20%20%22display%22%3A%20%22standalone%22%2C%0A%20%20%22background_color%22%3A%20%22%23f3f4f6%22%2C%0A%20%20%22theme_color%22%3A%20%22%233b82f6%22%2C%0A%20%20%22icons%22%3A%20%5B%0A%20%20%20%20%7B%0A%20%20%20%20%20%20%22src%22%3A%20%22data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzNiODJmNiIvPjxwYXRoIGQ9Ik0yNyA1MGwxNSAxNSAzMS0zMSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjEwIiBmaWxsPSJub25lIi8%2BPC9zdmc%2BIiwKICAgICAgInNpemVzIjogIjE5MngxOTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9zdmcreG1sIgogICAgfQogIF0KfQ==">
+
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar and smooth transitions */
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen text-slate-800 flex flex-col items-center p-4 sm:p-8 selection:bg-blue-200">
+
+    <!-- Main App Container -->
+    <main class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-[85vh] sm:h-auto sm:min-h-[500px]">
+        
+        <!-- Header -->
+        <header class="bg-blue-600 text-white p-6 relative shadow-md">
+            <h1 class="text-2xl font-bold tracking-tight">Tasks</h1>
+            <p class="text-blue-100 text-sm mt-1 opacity-90">Your offline-ready PWA</p>
+            
+            <!-- Install Button (Hidden by default, shown if PWA is installable) -->
+            <button id="installBtn" class="hidden absolute top-6 right-6 bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-lg text-sm font-medium backdrop-blur-sm shadow-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M216,112v96a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V112A16,16,0,0,1,56,96H80a8,8,0,0,1,0,16H56v96H200V112H176a8,8,0,0,1,0-16h24A16,16,0,0,1,216,112ZM133.66,157.66a8,8,0,0,0,11.31,0l32-32a8,8,0,0,0-11.31-11.31L136,143.69V32a8,8,0,0,0-16,0V143.69l-29.66-29.35a8,8,0,0,0-11.31,11.31Z"></path></svg>
+                Install
+            </button>
+        </header>
+
+        <!-- PWA Status Indicator -->
+        <div id="statusBanner" class="bg-slate-100 px-4 py-2 text-xs text-slate-500 font-medium flex justify-between items-center border-b border-slate-200">
+            <span class="flex items-center gap-1">
+                <span id="networkIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
+                <span id="networkText">Online</span>
+            </span>
+            <span id="swStatus">Checking Service Worker...</span>
+        </div>
+
+        <!-- Task Input -->
+        <div class="p-4 border-b border-slate-100 bg-slate-50">
+            <form id="todoForm" class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="taskInput" 
+                    placeholder="What needs to be done?" 
+                    class="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl px-4 py-3 font-semibold transition-all shadow-sm flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"></path></svg>
+                </button>
+            </form>
+        </div>
+
+        <!-- Task List -->
+        <div class="flex-1 overflow-y-auto p-2" id="taskListContainer">
+            <ul id="taskList" class="space-y-1">
+                <!-- Tasks will be dynamically injected here -->
+            </ul>
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden h-full flex-col items-center justify-center text-slate-400 p-8 text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mb-4 opacity-50" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a96,96,0,1,1-96-96A96.11,96.11,0,0,1,224,128Zm-96-80a80,80,0,1,0,80,80A80.09,80.09,0,0,0,128,48Zm45.66,61.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"></path></svg>
+                <p>No tasks yet. Add one above to get started!</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Application Logic -->
+    <script>
+        // ==========================================
+        // 1. TO-DO LIST LOGIC (UI & LocalStorage)
+        // ==========================================
+        const todoForm = document.getElementById('todoForm');
+        const taskInput = document.getElementById('taskInput');
+        const taskList = document.getElementById('taskList');
+        const emptyState = document.getElementById('emptyState');
+        
+        // Load tasks from localStorage (Offline data persistence)
+        let tasks = JSON.parse(localStorage.getItem('pwa_todos')) || [];
+
+        function saveTasks() {
+            localStorage.setItem('pwa_todos', JSON.stringify(tasks));
+        }
+
+        function renderTasks() {
+            taskList.innerHTML = '';
+            
+            if (tasks.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+                
+                tasks.forEach((task, index) => {
+                    const li = document.createElement('li');
+                    li.className = `fade-in flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors group ${task.completed ? 'opacity-60' : ''}`;
+                    
+                    li.innerHTML = `
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <button onclick="toggleTask(${index})" class="flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${task.completed ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-300 hover:border-blue-400 text-transparent'}">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path></svg>
+                            </button>
+                            <span class="truncate transition-all ${task.completed ? 'line-through text-slate-500' : 'text-slate-700 font-medium'}">${escapeHTML(task.text)}</span>
+                        </div>
+                        <button onclick="deleteTask(${index})" class="opacity-0 group-hover:opacity-100 focus:opacity-100 text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-all" aria-label="Delete task">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"></path></svg>
+                        </button>
+                    `;
+                    taskList.appendChild(li);
+                });
+            }
+        }
+
+        // Add Task
+        todoForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = taskInput.value.trim();
+            if (text) {
+                tasks.unshift({ text, completed: false }); // Add to top
+                saveTasks();
+                renderTasks();
+                taskInput.value = '';
+            }
+        });
+
+        // Toggle Task Complete
+        window.toggleTask = (index) => {
+            tasks[index].completed = !tasks[index].completed;
+            saveTasks();
+            renderTasks();
+        };
+
+        // Delete Task
+        window.deleteTask = (index) => {
+            tasks.splice(index, 1);
+            saveTasks();
+            renderTasks();
+        };
+
+        // Utility to prevent XSS
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag])
+            );
+        }
+
+        // Initial Render
+        renderTasks();
+
+        // ==========================================
+        // 2. NETWORK STATUS LOGIC
+        // ==========================================
+        const networkIndicator = document.getElementById('networkIndicator');
+        const networkText = document.getElementById('networkText');
+
+        function updateNetworkStatus() {
+            if (navigator.onLine) {
+                networkIndicator.className = 'w-2 h-2 rounded-full bg-green-500';
+                networkText.textContent = 'Online';
+            } else {
+                networkIndicator.className = 'w-2 h-2 rounded-full bg-red-500';
+                networkText.textContent = 'Offline (Working from Cache)';
+            }
+        }
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+        updateNetworkStatus();
+
+        // ==========================================
+        // 3. PWA INSTALLATION LOGIC
+        // ==========================================
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            deferredPrompt = e;
+            // Update UI to notify the user they can add to home screen
+            installBtn.classList.remove('hidden');
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt !== null) {
+                // Show the install prompt
+                deferredPrompt.prompt();
+                // Wait for the user to respond to the prompt
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    console.log('User accepted the install prompt');
+                } else {
+                    console.log('User dismissed the install prompt');
+                }
+                // We've used the prompt, and can't use it again, throw it away
+                deferredPrompt = null;
+                installBtn.classList.add('hidden');
+            }
+        });
+
+        window.addEventListener('appinstalled', () => {
+            installBtn.classList.add('hidden');
+            console.log('PWA was installed');
+        });
+
+        // ==========================================
+        // 4. SERVICE WORKER LOGIC (Single-File Workaround)
+        // ==========================================
+        // Standard PWAs require a physical service-worker.js file.
+        // To maintain the single-file constraint, we generate a Blob URL containing the SW code.
+        // NOTE: Strict browser policies might block Blob SW registration due to cross-origin isolation rules.
+        
+        const swStatusEl = document.getElementById('swStatus');
+        
+        const serviceWorkerCode = `
+            const CACHE_NAME = 'todo-pwa-cache-v1';
+            
+            // Files to cache (in a real app, this would be your html, css, js, icons)
+            // Here we just cache the root to allow offline access to this single file.
+            const urlsToCache = [
+                '/'
+            ];
+
+            self.addEventListener('install', event => {
+                event.waitUntil(
+                    caches.open(CACHE_NAME)
+                        .then(cache => {
+                            console.log('Opened cache');
+                            return cache.addAll(urlsToCache);
+                        })
+                        .catch(err => console.log('Cache addAll failed:', err))
+                );
+            });
+
+            self.addEventListener('fetch', event => {
+                event.respondWith(
+                    caches.match(event.request)
+                        .then(response => {
+                            // Cache hit - return response
+                            if (response) {
+                                return response;
+                            }
+                            return fetch(event.request).then(
+                                response => {
+                                    // Check if we received a valid response
+                                    if(!response || response.status !== 200 || response.type !== 'basic') {
+                                        return response;
+                                    }
+
+                                    // Clone the response because it's a stream
+                                    var responseToCache = response.clone();
+
+                                    caches.open(CACHE_NAME)
+                                        .then(cache => {
+                                            // Don't cache chrome-extension or data/blob schemas
+                                            if (event.request.url.startsWith('http')) {
+                                                cache.put(event.request, responseToCache);
+                                            }
+                                        });
+
+                                    return response;
+                                }
+                            );
+                        }).catch(() => {
+                             // Fallback if offline and not in cache
+                             return new Response('You are offline and this resource is not cached.');
+                        })
+                );
+            });
+
+            self.addEventListener('activate', event => {
+                const cacheWhitelist = [CACHE_NAME];
+                event.waitUntil(
+                    caches.keys().then(cacheNames => {
+                        return Promise.all(
+                            cacheNames.map(cacheName => {
+                                if (cacheWhitelist.indexOf(cacheName) === -1) {
+                                    return caches.delete(cacheName);
+                                }
+                            })
+                        );
+                    })
+                );
+            });
+        `;
+
+        async function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                try {
+                    // Create a blob from the SW string
+                    const blob = new Blob([serviceWorkerCode], { type: 'application/javascript' });
+                    const blobUrl = URL.createObjectURL(blob);
+                    
+                    // Attempt to register the SW from the Blob URL
+                    const registration = await navigator.serviceWorker.register(blobUrl);
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    swStatusEl.textContent = 'SW Active (Offline Ready)';
+                    swStatusEl.classList.add('text-green-600');
+                    
+                } catch (err) {
+                    console.warn('ServiceWorker registration failed via Blob (expected in some strict environments): ', err);
+                    swStatusEl.textContent = 'SW Blocked (Local Only)';
+                    swStatusEl.classList.add('text-amber-600');
+                    // Clean up UI since true offline routing failed
+                    // Note: App still works "offline" for data via localStorage!
+                }
+            } else {
+                swStatusEl.textContent = 'SW Not Supported';
+            }
+        }
+
+        // Initialize SW Registration on load
+        window.addEventListener('load', registerServiceWorker);
+
+    </script>
+</body>
+</html>
